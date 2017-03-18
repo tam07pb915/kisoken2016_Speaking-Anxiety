@@ -555,6 +555,3 @@ All items  |`r grep(TRUE,deacreasing$all)`
 Competence |`r grep(TRUE,deacreasing$ability)`
 Anxiety    |`r grep(TRUE,deacreasing$anxiety)`
 Avoidance  |`r grep(TRUE,deacreasing$avoid)`
-
-```{r,eval=F,include=F}
-cbind(apply(imp_list$april$avoid,1,mean),apply(imp_list$july$avoid,1,mean))
