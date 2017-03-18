@@ -1,0 +1,560 @@
+---
+title: "Kisoken2016:Speaking Anxiety"
+author: "Yu Tamura"
+date: "March 18, 2017"
+output: 
+  html_document:
+    toc: true
+    number_section: true
+
+---
+
+This document describes the analysis of speaking anxiety data reporeted in Tamura (2017).
+
+###Prepare necessary packages
+```{r,eval=F}
+#If you haven't installed the packages, please install first. If you have, you don't need to install the packages
+install.packages("dplyr")
+install.packages("mice")
+install.packages("VIM")
+install.packages("psychometric")
+install.packages("psych")
+install.packages("rlist")
+install.packages("coin")
+```
+```{r,message=F,warning=F}
+#Read packages
+library(dplyr)
+library(mice)
+library(VIM)
+library(psychometric)
+library(psych)
+library(rlist)
+library(coin)
+```
+
+#Read the data
+```{r}
+april<-read.csv("H27_speaking-anxiety_April.csv",header=T,sep=",")
+july<-read.csv("H27_speaking-anxiety_July.csv",header=T,sep=",")
+big5<-read.csv("H27_BIG5_results.csv",header=T,sep = ",")
+```
+
+#Check the students who demonstrate no variance for all the responses
+```{r}
+april$var<-apply(april[,-1],1,var)
+july$var<-apply(july[,-1],1,var)
+
+april%>%
+  filter(var==0)%>%
+  dplyr::select(ID)
+
+july%>%
+  filter(var==0)%>%
+  dplyr::select(ID)
+
+```
+In the April data two students showed no variance, which means these two students marked the same number for all the items. Therefore, treat the responses as NAs. In the July data, no such student was observed.
+
+```{r}
+april2<-april #copy the data
+april2%>%
+  dplyr::filter(ID=="9")%>%
+  dplyr::select(ability.1.ap:avoid.3.ap)%>%
+  replace(.,values=NA)->april2[9,c(2:(ncol(april2)-1))]
+
+april2%>%
+  dplyr::filter(ID=="19")%>%
+  dplyr::select(ability.1.ap:avoid.3.ap)%>%
+  replace(.,values=NA)->april2[19,c(2:(ncol(april2)-1))]
+
+```
+
+#Reliablity of the measurement
+```{r}
+alpha(april2[,-c(1,11)]) #All items
+alpha(july[,-c(1,11)]) #All items
+
+#Ability in April
+april2%>%
+  dplyr::select(starts_with("ability"))%>%
+  alpha
+#Anxiety in April
+april2%>%
+  dplyr::select(starts_with("anxiety"))%>%
+  alpha
+
+#Avoidance in April
+april2%>%
+  dplyr::select(starts_with("avoid"))%>%
+  alpha
+
+#Ability in July
+july%>%
+  dplyr::select(starts_with("ability"))%>%
+  alpha
+#Anxiety in July
+july%>%
+  dplyr::select(starts_with("anxiety"))%>%
+  alpha
+
+#Avoidance in July
+july%>%
+  dplyr::select(starts_with("avoid"))%>%
+  alpha
+
+```
+
+#Combine the April and July data into one data frame
+```{r}
+cbind(april2[,-11],july[,-c(1,11)],big5[,-1])%>% #exclude ID column and var column
+  as.data.frame->dat
+#dat
+dat[,-1]->noID #making the data without ID column
+summary(noID)
+```
+
+#Check the missing data
+```{r}
+noID%>%
+  dplyr::select(ability.1.ap:avoid.3.jul)%>%
+  aggr%>%
+  summary
+```
+
+#Multiple Imputation by mice
+```{r}
+m<-20 #define the numer of data sets to be created
+imp_data<-mice(noID,m,method="pmm",printFlag = F,maxit = 50,seed = 1)
+```
+
+#Summarize the data 
+Since the imputed data sets were not summarized as three sub-components (ability, anxiety, avoidance), we need to calculate the mean scores of each sub-component. 
+
+####Prepare lists and data frames
+```{r}
+imp_list<-list() #prepare a list
+imp_list$april<-list() #prepare a list for April data
+imp_list$april$all<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for all items
+imp_list$april$ability<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for ability
+imp_list$april$anxiety<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for anxiety
+imp_list$april$avoid<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for avoidance
+
+imp_list$july<-list() #prepare a list for July data
+imp_list$july$all<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for all items
+imp_list$july$ability<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for ability
+imp_list$july$anxiety<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for anxiety
+imp_list$july$avoid<-matrix(nrow = nrow(noID),ncol=m) #prepare a data frame for avoidance
+
+```
+
+##All items
+```{r}
+#April
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(ends_with("ap"))%>%
+    apply(.,1,mean)->imp_list$april$all[,i]
+}
+
+#July
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(ends_with("jul")) %>%
+    apply(.,1,mean)->imp_list$july$all[,i]
+}
+
+```
+
+###Descriptive Statistics (All items)
+```{r}
+apply(imp_list$april$all,1,mean)%>%describe #April
+apply(imp_list$july$all,1,mean)%>%describe #July
+```
+
+##Ability
+```{r}
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("ability"))%>%
+    dplyr::select(ends_with("ap")) %>%
+    apply(.,1,mean)->imp_list$april$ability[,i]
+}
+
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("ability"))%>%
+    dplyr::select(ends_with("jul")) %>%
+    apply(.,1,mean)->imp_list$july$ability[,i]
+}
+
+```
+
+###Descriptive Statistics (Ability)
+```{r}
+apply(imp_list$april$ability,1,mean)%>%describe #April
+apply(imp_list$july$ability,1,mean)%>%describe #July
+```
+
+##Anxiety
+```{r}
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("anxiety"))%>%
+    dplyr::select(ends_with("ap")) %>%
+    apply(.,1,mean)->imp_list$april$anxiety[,i]
+}
+
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("anxiety"))%>%
+    dplyr::select(ends_with("jul")) %>%
+    apply(.,1,mean)->imp_list$july$anxiety[,i]
+}
+
+```
+
+###Descriptive Statistics (Anxiety)
+```{r}
+apply(imp_list$april$anxiety,1,mean)%>%describe #April
+apply(imp_list$july$anxiety,1,mean)%>%describe #July
+```
+
+##Avoidance
+```{r}
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("avoid"))%>%
+    dplyr::select(ends_with("ap")) %>%
+    apply(.,1,mean)->imp_list$april$avoid[,i]
+}
+
+for (i in 1:m){
+  mice::complete(imp_data,i)%>%
+    dplyr::select(starts_with("avoid"))%>%
+    dplyr::select(ends_with("jul")) %>%
+    apply(.,1,mean)->imp_list$july$avoid[,i]
+}
+
+```
+
+###Descriptive Statistics (Avoidance)
+```{r}
+apply(imp_list$april$avoid,1,mean)%>%describe #April
+apply(imp_list$july$avoid,1,mean)%>%describe #July
+```
+
+##Check normality
+```{r}
+normal<-list()
+normal$april$all<-apply(imp_list$april$all,2,shapiro.test) #All items for April
+normal$july$all<-apply(imp_list$july$all,2,shapiro.test) #All items for July
+
+normal$april$ability<-apply(imp_list$april$ability,2,shapiro.test) #Ability for April
+normal$july$ability<-apply(imp_list$july$ability,2,shapiro.test) #Ability for July
+
+normal$april$anxiety<-apply(imp_list$april$anxiety,2,shapiro.test) #Anxiety for April
+normal$july$anxiety<-apply(imp_list$july$anxiety,2,shapiro.test) #Anxiety for July
+
+normal$april$avoid<-apply(imp_list$april$avoid,2,shapiro.test) #Avoidance for April
+normal$april$avoid<-apply(imp_list$july$avoid,2,shapiro.test) #Avoidance for July
+```
+
+##Check how many data sets violate normality
+```{r}
+list.filter(normal$april$all,p.value<.05)%>%length #All items for April
+list.filter(normal$july$all,p.value<.05)%>%length #All items for July
+list.filter(normal$april$ability,p.value<.05)%>%length #Ability for April
+list.filter(normal$july$ability,p.value<.05)%>%length #Ability for July
+list.filter(normal$april$anxiety,p.value<.05)%>%length #Anxiety for April
+list.filter(normal$july$anxiety,p.value<.05)%>%length #Anxiety for July
+list.filter(normal$april$avoid,p.value<.05)%>%length #Avoidance for April
+list.filter(normal$july$avoid,p.value<.05)%>%length #Avoidance for July
+
+```
+
+We can see that some of the data sets for the Ability in April showed p values lower than .05 in the Shapiro-Wilk normality test, indicating that these were not normaliy distributed. In addition, all the data sets for the Anxiety in April were also not normality distributed. Therefore, for those data sets, we are going to perform non-parametric Wilkoxon Singed Rank Tests as well.
+
+
+#Paired sample t-tests
+##All items
+```{r}
+r.all<-data.frame(t=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m)) #prepare a data frame
+#print(r.anxiety)
+
+#Repeat paired sample t-tests.
+for (i in 1:m){
+  result<-0
+  result<-t.test(imp_list$april$all[,i],imp_list$july$all[,i],paired = T) #perform t-test
+  t<-0
+  t<-result$statistic #get t-value
+  p<-result$p.value #get p-value
+  r.all[i,1]<-round(t,3)
+  r.all[i,2]<-p
+  df<-0
+  df<-result$parameter #get degree of freedom
+  r<-0
+  r<-sqrt((t^2)/(t^2+df)) #get effect size r
+  r.all[i,3]<-r
+  r.all[i,4:5]<-CIr(r = r,n = df+1,0.95) #get 95%CI
+}
+print(r.all)
+apply(r.all,2,mean)%>%round(.,3)
+```
+
+##Ability
+###Wilcoxsign_test
+```{r}
+wilcox.result.ability<-data.frame(z.score=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m))
+for (i in 1:m){
+  result<-0  
+  result<-wilcoxsign_test(imp_list$april$ability[,i]~imp_list$july$ability[,i],distribution="exact")
+  wilcox.result.ability[i,1] <- result@statistic@teststatistic #extract z score
+  wilcox.result.ability[i,2] <- pvalue(result) #p value for the test
+  wilcox.result.ability[i,3] <- wilcox.result.ability[i,1]/sqrt(nrow(imp_list$july$ability)) #effect size r
+  wilcox.result.ability[i,4:5] <- CIr(r = wilcox.result.ability[i,3],n = nrow(imp_list$july$ability),0.95)
+}
+print(wilcox.result.ability)
+apply(wilcox.result.ability,2,mean)%>%round(.,3)
+```
+
+###Paired Sample t-tests
+```{r}
+r.ability<-data.frame(t=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m)) #prepare a data frame
+#print(r.anxiety)
+
+#Repeat paired sample t-tests.
+for (i in 1:m){
+  result<-0
+  result<-t.test(imp_list$april$ability[,i],imp_list$july$ability[,i],paired = T) #perform t-test
+  t<-0
+  t<-result$statistic #get t-value
+  p<-result$p.value #get p-value
+  r.ability[i,1]<-round(t,3)
+  r.ability[i,2]<-p
+  df<-0
+  df<-result$parameter #get degree of freedom
+  r<-0
+  r<-sqrt((t^2)/(t^2+df)) #get effect size r
+  r.ability[i,3]<-r
+  r.ability[i,4:5]<-CIr(r = r,n = df+1,0.95) #get 95%CI
+}
+print(r.ability)
+apply(r.ability,2,mean)%>%round(.,3)
+```
+
+##Anxiety
+###Wilcoxsign_test
+```{r}
+wilcox.result.anxiety<-data.frame(z.score=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m))
+for (i in 1:m){
+  result<-0  
+  result<-wilcoxsign_test(imp_list$april$anxiety[,i]~imp_list$july$anxiety[,i],distribution="exact")
+  wilcox.result.anxiety[i,1] <- result@statistic@teststatistic #extract z score
+  wilcox.result.anxiety[i,2] <- pvalue(result) #p value for the test
+  wilcox.result.anxiety[i,3] <- wilcox.result.anxiety[i,1]/sqrt(nrow(imp_list$july$anxiety)) #effect size r
+  wilcox.result.anxiety[i,4:5] <- CIr(r = wilcox.result.anxiety[i,3],n = nrow(imp_list$july$anxiety),0.95)
+}
+print(wilcox.result.anxiety)
+apply(wilcox.result.anxiety,2,mean)%>%round(.,3)
+```
+
+###Paired Sample t-tests
+```{r}
+r.anxiety<-data.frame(t=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m)) #prepare a data frame
+#print(r.anxiety)
+
+#Repeat paired sample t-tests.
+for (i in 1:m){
+  result<-0
+  result<-t.test(imp_list$april$anxiety[,i],imp_list$july$anxiety[,i],paired = T) #perform t-test
+  t<-0
+  t<-result$statistic #get t-value
+  p<-result$p.value #get p-value
+  r.anxiety[i,1]<-round(t,3)
+  r.anxiety[i,2]<-p
+  df<-0
+  df<-result$parameter #get degree of freedom
+  r<-0
+  r<-sqrt((t^2)/(t^2+df)) #get effect size r
+  r.anxiety[i,3]<-r
+  r.anxiety[i,4:5]<-CIr(r = r,n = df+1,0.95) #get 95%CI
+}
+print(r.anxiety)
+apply(r.anxiety,2,mean)%>%round(.,3)
+```
+
+##Avoidance
+```{r}
+r.avoid<-data.frame(t=rep(0,m),p.value=rep(0,m),r=rep(0,m),LowerCI=rep(0,m),UpperCI=rep(0,m)) #prepare a data frame
+#print(r.anxiety)
+
+#Repeat paired sample t-tests.
+for (i in 1:m){
+  result<-0
+  result<-t.test(imp_list$april$avoid[,i],imp_list$july$avoid[,i],paired = T) #perform t-test
+  t<-0
+  t<-result$statistic #get t-value
+  p<-result$p.value #get p-value
+  r.avoid[i,1]<-round(t,3)
+  r.avoid[i,2]<-p
+  df<-0
+  df<-result$parameter #get degree of freedom
+  r<-0
+  r<-sqrt((t^2)/(t^2+df)) #get effect size r
+  r.avoid[i,3]<-r
+  r.avoid[i,4:5]<-CIr(r = r,n = df+1,0.95) #get 95%CI
+}
+print(r.avoid)
+apply(r.avoid,2,mean)%>%round(.,3)
+
+r.avoid$LowerCI[r.avoid$LowerCI< 0]%>%length
+r.avoid$p.value[r.avoid$p.value< .05]%>%length
+```
+
+#Visualization
+##All items
+```{r,fig.align="center",fig.height=5,fig.width=5}
+plot(apply(imp_list$april$all,1,mean),apply(imp_list$july$all,1,mean)
+     ,xlab="April",ylab="July"
+     ,xlim=c(0,7),ylim=c(0,7)
+     ,main="All items")
+abline(0,1)
+```
+
+##Ability
+```{r,fig.align="center",fig.height=5,fig.width=5}
+plot(apply(imp_list$april$ability,1,mean),apply(imp_list$july$ability,1,mean)
+     ,xlab="April",ylab="July"
+     ,xlim=c(0,7),ylim=c(0,7)
+     ,main="Competence")
+abline(0,1)
+```
+
+##Anxiety
+```{r,fig.align="center",fig.height=5,fig.width=5}
+plot(apply(imp_list$april$anxiety,1,mean),apply(imp_list$july$anxiety,1,mean)
+     ,xlab="April",ylab="July"
+     ,xlim=c(0,7),ylim=c(0,7)
+     ,main="Anxiety")
+abline(0,1)
+
+```
+
+##Avoidance
+```{r,fig.align="center",fig.height=5,fig.width=5}
+plot(apply(imp_list$april$avoid,1,mean),apply(imp_list$july$avoid,1,mean)
+     ,xlab="April",ylab="July"
+     ,xlim=c(0,7),ylim=c(0,7)
+     ,main="Avoidance")
+abline(0,1)
+
+```
+
+***
+
+#List-wise deletion (Just for reference)
+```{r}
+noID%>%
+  na.exclude%>%
+  dplyr::select(ability.1.ap:avoid.3.jul)->listwise.dat
+```
+##Stats
+```{r}
+listwise.dat2<-data.frame(ability.ap=rep(0,nrow(listwise.dat)),
+                          anxiety.ap=rep(0,nrow(listwise.dat)),
+                          avoid.ap=rep(0,nrow(listwise.dat)),
+                          all.ap=rep(0,nrow(listwise.dat)),
+                          ability.jul=rep(0,nrow(listwise.dat)),
+                          anxiety.jul=rep(0,nrow(listwise.dat)),
+                          avoid.jul=rep(0,nrow(listwise.dat)),
+                          all.jul=rep(0,nrow(listwise.dat)))
+listwise.dat%>%
+  dplyr::select(starts_with("ability")) %>%
+  dplyr::select(ends_with("ap"))%>%
+  apply(.,1,mean)->listwise.dat2$ability.ap
+
+listwise.dat%>%
+  dplyr::select(starts_with("anxiety")) %>%
+  dplyr::select(ends_with("ap"))%>%
+  apply(.,1,mean)->listwise.dat2$anxiety.ap
+
+listwise.dat%>%
+  dplyr::select(starts_with("avoid")) %>%
+  dplyr::select(ends_with("ap"))%>%
+  apply(.,1,mean)->listwise.dat2$avoid.ap
+
+listwise.dat%>%
+  dplyr::select(ends_with("ap"))%>%
+  apply(.,1,mean)->listwise.dat2$all.ap
+  
+listwise.dat%>%
+  dplyr::select(starts_with("ability")) %>%
+  dplyr::select(ends_with("jul"))%>%
+  apply(.,1,mean)->listwise.dat2$ability.jul
+
+listwise.dat%>%
+  dplyr::select(starts_with("anxiety")) %>%
+  dplyr::select(ends_with("jul"))%>%
+  apply(.,1,mean)->listwise.dat2$anxiety.jul
+
+listwise.dat%>%
+  dplyr::select(starts_with("avoid")) %>%
+  dplyr::select(ends_with("jul"))%>%
+  apply(.,1,mean)->listwise.dat2$avoid.jul
+
+listwise.dat%>%
+  dplyr::select(ends_with("jul"))%>%
+  apply(.,1,mean)->listwise.dat2$all.jul
+
+sapply(listwise.dat2,describe,simplify = T)%>%t()
+```
+
+##Paired _t_-tests
+```{r}
+head(listwise.dat2)
+#apply(listwise.dat2,2,shapiro.test)
+
+t.test(listwise.dat2$all.ap,listwise.dat2$all.jul,paired=T)
+t.test(listwise.dat2$ability.ap,listwise.dat2$ability.jul,paired=T)
+t.test(listwise.dat2$anxiety.ap,listwise.dat2$anxiety.jul,paired=T)
+t.test(listwise.dat2$avoid.ap,listwise.dat2$avoid.jul,paired=T)
+
+wilcoxsign_test(listwise.dat2$all.ap~listwise.dat2$all.jul,exact=T)
+wilcoxsign_test(listwise.dat2$ability.ap~listwise.dat2$ability.jul,exact=T)
+wilcoxsign_test(listwise.dat2$anxiety.ap~listwise.dat2$anxiety.jul,exact=T)
+wilcoxsign_test(listwise.dat2$avoid.ap~listwise.dat2$avoid.jul,exact=T)
+
+```
+
+***
+
+#Identify the students whose speaking anxiety did not decrease
+```{r}
+#Prepare a data frame 
+deacreasing<-data.frame(all=rep(0,nrow(imp_list$april$all))
+                        ,ability=rep(0,nrow(imp_list$april$ability))
+                        ,anxiety=rep(0,nrow(imp_list$april$anxiety))
+                        ,avoid=rep(0,nrow(imp_list$april$avoid)))
+
+#Decreased -> FALSE; Not decreased -> TRUE
+deacreasing$all<-apply(imp_list$april$all,1,mean)<= apply(imp_list$july$all,1,mean)
+deacreasing$ability<-apply(imp_list$april$ability,1,mean) <= apply(imp_list$july$ability,1,mean)
+deacreasing$anxiety<-apply(imp_list$april$anxiety,1,mean) <= apply(imp_list$july$anxiety,1,mean)
+deacreasing$avoid<-apply(imp_list$april$avoid,1,mean) <= apply(imp_list$july$avoid,1,mean)
+
+grep(TRUE,deacreasing$all) #Extracting the rows which has TRUE
+grep(TRUE,deacreasing$ability) #Extracting the rows which has TRUE
+grep(TRUE,deacreasing$anxiety) #Extracting the rows which has TRUE
+grep(TRUE,deacreasing$avoid) #Extracting the rows which has TRUE
+```
+
+Category   | ID
+-----------|------
+All items  |`r grep(TRUE,deacreasing$all)`
+Competence |`r grep(TRUE,deacreasing$ability)`
+Anxiety    |`r grep(TRUE,deacreasing$anxiety)`
+Avoidance  |`r grep(TRUE,deacreasing$avoid)`
+
+```{r,eval=F,include=F}
+cbind(apply(imp_list$april$avoid,1,mean),apply(imp_list$july$avoid,1,mean))
