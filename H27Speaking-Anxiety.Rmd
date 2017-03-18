@@ -35,9 +35,9 @@ library(coin)
 
 #Read the data
 ```{r}
-april<-read.csv("H27_speaking-anxiety_April.csv",header=T,sep=",")
-july<-read.csv("H27_speaking-anxiety_July.csv",header=T,sep=",")
-big5<-read.csv("H27_BIG5_results.csv",header=T,sep = ",")
+april<-read.csv("Data/H27_speaking-anxiety_April.csv",header=T,sep=",")
+july<-read.csv("Data/H27_speaking-anxiety_July.csv",header=T,sep=",")
+big5<-read.csv("Data/H27_BIG5_results.csv",header=T,sep = ",")
 ```
 
 #Check the students who demonstrate no variance for all the responses
